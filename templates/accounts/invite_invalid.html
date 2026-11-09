@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="auth"><div class="card"><h1>Invitation unavailable</h1>
+<p class="muted">{% if invitation %}This invitation is {{ invitation.status }}.{% else %}This invitation link is not valid.{% endif %} Ask your IT administrator for a new one.</p>
+<a class="btn" href="{% url 'login' %}">Go to sign in</a></div></div>
+{% endblock %}

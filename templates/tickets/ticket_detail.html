@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar"><div><div class="crumbs"><a href="{% url 'ticket_list' %}">Tickets</a> / {{ ticket.number }}</div>
+<h1>{{ ticket.title }}</h1>
+<div class="row" style="flex:0 0 auto"><span class="badge">{{ ticket.get_category_display }}</span> <span class="badge">{{ ticket.get_priority_display }}</span>
+<span class="badge {% if ticket.status == 'resolved' or ticket.status == 'closed' %}b-ok{% elif ticket.status == 'rejected' %}b-bad{% else %}b-warn{% endif %}">{{ ticket.get_status_display }}</span>
+{% if ticket.is_overdue %}<span class="badge b-bad">overdue</span>{% endif %}</div></div></div>
+
+<div class="grid" style="grid-template-columns:minmax(0,2fr) minmax(260px,1fr);align-items:start">
+<div>
+  <div class="card"><h2>Description</h2><p style="white-space:pre-wrap;margin:0">{{ ticket.description|default:"No description." }}</p></div>
+
+  {% if lifecycle %}
+  <div class="card"><h2>{% if ticket.category == 'onboarding' %}Onboarding details{% else %}Offboarding details{% endif %}</h2>
+    <table>
+    <tr><th style="width:38%">Employee</th><td>{{ lifecycle.employee_name }} {% if lifecycle.employee_id %}({{ lifecycle.employee_id }}){% endif %}</td></tr>
+    <tr><th>Company email</th><td>{{ lifecycle.company_email }}</td></tr>
+    {% if ticket.category == 'onboarding' %}
+      <tr><th>Job title</th><td>{{ lifecycle.job_title }}</td></tr>
+      <tr><th>Joining date</th><td>{{ lifecycle.joining_date }}</td></tr>
+      <tr><th>Employment type</th><td>{{ lifecycle.employment_type }}</td></tr>
+      <tr><th>License / laptop</th><td>{{ lifecycle.m365_license|default:"&mdash;" }} / {{ lifecycle.laptop_required|yesno:"laptop required,no laptop" }}</td></tr>
+      <tr><th>Software / permissions</th><td>{{ lifecycle.software_requirements|default:"&mdash;" }}<br>{{ lifecycle.special_permissions }}</td></tr>
+    {% else %}
+      <tr><th>Last working day</th><td>{{ lifecycle.last_working_day }}</td></tr>
+      <tr><th>Termination</th><td>{{ lifecycle.termination_at }}</td></tr>
+      <tr><th>Mailbox retention</th><td>{{ lifecycle.mailbox_retention_days }} days; forward to {{ lifecycle.forward_to|default:"none" }}</td></tr>
+      <tr><th>Data transfer to</th><td>{{ lifecycle.data_transfer_to|default:"&mdash;" }}</td></tr>
+      <tr><th>Equipment to recover</th><td>{{ lifecycle.assigned_equipment|default:"&mdash;" }}</td></tr>
+    {% endif %}
+    </table></div>
+  {% endif %}
+
+  {% if tasks %}
+  <div class="card"><h2>Tasks</h2>
+  <table><tr><th>Task</th><th>Assignee</th><th>Status</th><th>Actions</th></tr>
+  {% for task in tasks %}
+  <tr><td>{{ task.title }}{% if task.result %}<div class="help">{{ task.result }}</div>{% endif %}</td>
+  <td>{{ task.assignee.display_name|default:"Unassigned" }}</td>
+  <td><span class="badge {% if task.status == 'done' %}b-ok{% endif %}">{{ task.get_status_display }}</span></td>
+  <td>
+    {% if task.assignee == request.user or request.user.is_global_admin %}
+      <form class="inline" method="post" action="{% url 'task_update' task.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+        <input type="hidden" name="done" value="{% if task.status == 'done' %}0{% else %}1{% endif %}">
+        <button class="btn" type="submit">{% if task.status == 'done' %}Reopen{% else %}Mark done{% endif %}</button></form>
+    {% endif %}
+    {% if task.m365_action and can_run_m365 and task.status != 'done' %}
+      <form class="inline" method="post" action="{% url 'task_run_m365' task.pk %}">{% csrf_token %}
+        <button class="btn" type="submit">Run in Microsoft 365</button></form>
+    {% endif %}
+  </td></tr>
+  {% endfor %}</table></div>
+  {% endif %}
+
+  <div class="card"><h2>Conversation</h2>
+  <ul class="plain">
+  {% for c in comments %}
+    <li style="padding:8px 0;border-bottom:1px solid var(--border)">
+      <strong>{{ c.author.display_name }}</strong> <span class="muted">{{ c.created_at|date:"M j, H:i" }}</span>
+      {% if c.is_internal %}<span class="badge b-warn">internal note</span>{% endif %}
+      <div style="white-space:pre-wrap">{{ c.body }}</div>
+    </li>
+  {% empty %}<li class="muted">No comments yet.</li>
+  {% endfor %}
+  </ul>
+  {% if ticket.is_open or request.user.is_global_admin %}
+  <form method="post" style="margin-top:12px">{% csrf_token %}<input type="hidden" name="action" value="comment">
+    <textarea name="body" rows="3" placeholder="Write a comment..."></textarea>
+    {% if staff %}<label style="font-weight:400"><input type="checkbox" name="is_internal" value="on" style="width:auto"> Internal note (hidden from requester)</label>{% endif %}
+    <p><button class="btn btn-primary" type="submit">Add comment</button></p>
+  </form>
+  {% endif %}
+  </div>
+
+  <div class="card"><h2>Attachments</h2>
+  <ul class="plain">{% for a in attachments %}<li><a href="{% url 'attachment_download' a.pk %}">{{ a.original_name }}</a> <span class="muted">by {{ a.uploaded_by.display_name }}</span></li>{% empty %}<li class="muted">None.</li>{% endfor %}</ul>
+  <form method="post" enctype="multipart/form-data" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="action" value="upload">
+    <input type="file" name="file" required> <button class="btn" type="submit" style="margin-top:8px">Upload</button>
+    <div class="help">PDF, images, Office files, text, CSV, ZIP. Max 10 MB.</div></form></div>
+</div>
+
+<div>
+  <div class="card"><h2>Details</h2>
+  <table>
+  <tr><th>Number</th><td>{{ ticket.number }}</td></tr>
+  <tr><th>Requester</th><td>{{ ticket.requester.display_name }}</td></tr>
+  <tr><th>Department</th><td>{{ ticket.department.name|default:"&mdash;" }}</td></tr>
+  <tr><th>Approver</th><td>{{ ticket.approver.display_name|default:"&mdash;" }}</td></tr>
+  <tr><th>Assignee</th><td>{{ ticket.assignee.display_name|default:"Unassigned" }}</td></tr>
+  <tr><th>Created</th><td>{{ ticket.created_at|date:"M j, Y H:i" }}</td></tr>
+  <tr><th>Due</th><td>{{ ticket.due_date|date:"M j, Y H:i"|default:"&mdash;" }}</td></tr>
+  </table>
+  {% if ticket.status == 'resolved' or ticket.status == 'closed' %}
+    {% if is_requester or request.user.is_global_admin %}<form method="post" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="action" value="reopen"><button class="btn" type="submit">Reopen ticket</button></form>{% endif %}
+  {% endif %}
+  </div>
+
+  {% if approvals %}
+  <div class="card"><h2>Approval history</h2><ul class="plain timeline">
+  {% for a in approvals %}<li>{{ a.approver.display_name }} &middot; {{ a.get_decision_display }}{% if a.decided_at %} &middot; {{ a.decided_at|date:"M j, H:i" }}{% endif %}{% if a.comment %}<div class="muted">{{ a.comment }}</div>{% endif %}</li>{% endfor %}
+  </ul></div>
+  {% endif %}
+
+  {% if can_status and ticket.status != 'pending_approval' %}
+  <div class="card"><h2>Update status</h2>
+    <form method="post" class="row">{% csrf_token %}<input type="hidden" name="action" value="status">
+      <select name="status">{% for v,l in status_choices %}<option value="{{ v }}" {% if v == ticket.status %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+      <button class="btn btn-primary" type="submit">Save</button></form>
+    <form method="post" class="row" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="action" value="priority">
+      <select name="priority">{% for v,l in priority_choices %}<option value="{{ v }}" {% if v == ticket.priority %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+      <button class="btn" type="submit">Set priority</button></form>
+  </div>
+  {% endif %}
+
+  {% if can_assign %}
+  <div class="card"><h2>Assignment</h2>
+    <form method="post" class="row">{% csrf_token %}<input type="hidden" name="action" value="assign">
+      <select name="assignee"><option value="">Unassigned</option>{% for u in staff_users %}<option value="{{ u.pk }}" {% if u.pk == ticket.assignee_id %}selected{% endif %}>{{ u.display_name }} ({{ u.get_role_display }})</option>{% endfor %}</select>
+      <button class="btn btn-primary" type="submit">Assign</button></form>
+  </div>
+  {% endif %}
+
+  {% if approvals and staff %}{% endif %}
+  {% if staff %}
+  <div class="card"><h2>Activity</h2><ul class="plain timeline">
+  {% for a in activity %}<li><strong>{{ a.action }}</strong><div class="muted">{{ a.actor.username|default:"system" }} &middot; {{ a.created_at|date:"M j, H:i" }}</div></li>{% empty %}<li class="muted">No activity.</li>{% endfor %}
+  </ul></div>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar"><div><div class="crumbs">IT assets</div><h1>Asset inventory</h1></div>
+{% if can_manage %}<a class="btn btn-primary" href="{% url 'asset_create' %}">+ Add asset</a>{% endif %}</div>
+<div class="card">
+<form method="get" class="row" style="margin-bottom:12px">
+  <input type="search" name="q" value="{{ q }}" placeholder="Tag, name or serial">
+  <select name="status"><option value="">All statuses</option>{% for v,l in status_choices %}<option value="{{ v }}" {% if status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <button class="btn" type="submit">Filter</button></form>
+<table><tr><th>Tag</th><th>Asset</th><th>Category</th><th>Serial</th><th>Status</th><th>Assigned to</th>{% if can_manage %}<th>Actions</th>{% endif %}</tr>
+{% for a in page %}
+<tr><td>{{ a.asset_tag }}</td><td>{{ a.name }} <span class="muted">{{ a.manufacturer }} {{ a.model }}</span></td><td>{{ a.get_category_display }}</td><td>{{ a.serial_number|default:"&mdash;" }}</td>
+<td><span class="badge">{{ a.get_status_display }}</span></td><td>{{ a.assigned_to.display_name|default:"&mdash;" }}</td>
+{% if can_manage %}<td>
+  {% if a.status == 'assigned' %}
+    <form method="post" action="{% url 'asset_assign' a.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="action" value="return"><button class="btn" type="submit">Record return</button></form>
+  {% elif a.status == 'available' or a.status == 'returned' %}
+    <form method="post" action="{% url 'asset_assign' a.pk %}" class="row">{% csrf_token %}
+      <select name="user" required><option value="">Assign to...</option>{% for u in assignable_users %}<option value="{{ u.pk }}">{{ u.display_name }}</option>{% endfor %}</select>
+      <button class="btn" type="submit">Assign</button></form>
+  {% endif %}
+</td>{% endif %}</tr>
+{% empty %}<tr><td colspan="7" class="empty">No assets found.</td></tr>{% endfor %}
+</table>
+<div class="row" style="margin-top:12px">{% if page.has_previous %}<a class="btn" href="?page={{ page.previous_page_number }}">&larr; Prev</a>{% endif %}
+{% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}">Next &rarr;</a>{% endif %}</div>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar"><div><div class="crumbs">Administration</div><h1>Users and invitations</h1></div>
+<a class="btn btn-primary" href="{% url 'invite_create' %}">+ Invite user</a></div>
+<div class="card"><h2>Users</h2><table><tr><th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Manager</th><th>Status</th>{% if can_manage %}<th></th>{% endif %}</tr>
+{% for u in users %}
+<tr><td>{{ u.display_name }}</td><td>{{ u.email }}</td><td>{{ u.get_role_display }}</td><td>{{ u.department.name|default:"&mdash;" }}</td><td>{{ u.manager.display_name|default:"&mdash;" }}</td>
+<td><span class="badge {% if u.is_active %}b-ok{% else %}b-bad{% endif %}">{{ u.is_active|yesno:"active,inactive" }}</span></td>
+{% if can_manage %}<td><form method="post" action="{% url 'user_toggle_active' u.pk %}" class="inline">{% csrf_token %}<button class="btn" type="submit">{% if u.is_active %}Deactivate{% else %}Activate{% endif %}</button></form></td>{% endif %}</tr>
+{% endfor %}</table></div>
+<div class="card"><h2>Invitations</h2><table><tr><th>Email</th><th>Role</th><th>Status</th><th>Expires</th><th></th></tr>
+{% for i in invitations %}
+<tr><td>{{ i.email }}</td><td>{{ i.get_role_display }}</td><td><span class="badge">{{ i.status }}</span></td><td>{{ i.expires_at|date:"M j, Y H:i" }}</td>
+<td>{% if i.status != 'accepted' %}
+  <form method="post" action="{% url 'invitation_resend' i.pk %}" class="inline">{% csrf_token %}<button class="btn" type="submit">Resend</button></form>
+  {% if i.status == 'pending' or i.status == 'expired' %}<form method="post" action="{% url 'invitation_revoke' i.pk %}" class="inline">{% csrf_token %}<button class="btn btn-danger" type="submit">Revoke</button></form>{% endif %}
+{% endif %}</td></tr>
+{% empty %}<tr><td colspan="5" class="empty">No invitations yet.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

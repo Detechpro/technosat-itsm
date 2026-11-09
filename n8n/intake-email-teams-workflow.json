@@ -1,0 +1,31 @@
+{
+  "name": "IT Portal: email and Teams intake",
+  "nodes": [
+    { "parameters": { "pollTimes": { "item": [{ "mode": "everyMinute" }] }, "filters": { "folderId": "inbox", "readStatus": "unread" } },
+      "name": "New email to service desk", "type": "n8n-nodes-base.microsoftOutlookTrigger", "typeVersion": 1, "position": [240, 200] },
+    { "parameters": { "events": ["teamsMessageCreated"], "teamId": "={{ $env.PORTAL_TEAMS_TEAM_ID }}", "channelId": "={{ $env.PORTAL_TEAMS_CHANNEL_ID }}" },
+      "name": "New Teams channel message", "type": "n8n-nodes-base.microsoftTeamsTrigger", "typeVersion": 1, "position": [240, 400] },
+    { "parameters": { "jsCode": "const crypto = require('crypto');\nconst isEmail = $json.subject !== undefined || $json.from !== undefined;\nconst sender = isEmail ? ($json.from?.emailAddress?.address || $json.from || '') : ($json.from?.user?.mail || $json.from?.user?.userPrincipalName || '');\nconst payload = {\n  action: 'ticket.create_from_message',\n  channel: isEmail ? 'email' : 'teams',\n  sender: String(sender).toLowerCase(),\n  subject: isEmail ? ($json.subject || '') : '',\n  body: isEmail ? ($json.bodyPreview || $json.body?.content || '') : ($json.body?.content || ''),\n  external_id: $json.id || ''\n};\nconst raw = JSON.stringify(payload);\nconst ts = String(Math.floor(Date.now()/1000));\nconst sig = 'sha256=' + crypto.createHmac('sha256', $env.PORTAL_INBOUND_SECRET).update(ts + '.' + raw).digest('hex');\nreturn [{ json: { raw, ts, sig, eventId: 'intake-' + (payload.external_id || Date.now()) } }];" },
+      "name": "Build signed callback", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [460, 300] },
+    { "parameters": { "method": "POST", "url": "={{ $env.PORTAL_BASE_URL }}/api/v1/integrations/n8n/callback/", "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "X-Portal-Timestamp", "value": "={{ $json.ts }}" },
+          { "name": "X-Portal-Signature", "value": "={{ $json.sig }}" },
+          { "name": "X-Event-Id", "value": "={{ $json.eventId }}" } ] },
+        "sendBody": true, "contentType": "raw", "rawContentType": "application/json", "body": "={{ $json.raw }}", "options": {} },
+      "name": "Open ticket in portal", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4, "position": [680, 300] },
+    { "parameters": { "conditions": { "number": [{ "value1": "={{ $json.statusCode }}", "value2": 422 }] } },
+      "name": "Unknown sender?", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [900, 300] },
+    { "parameters": { "toRecipients": "={{ $('New email to service desk').item.json.from?.emailAddress?.address }}", "subject": "Please request access to the IT Service Portal",
+        "bodyContent": "We could not open a ticket because this address is not registered. Ask your IT team for an invitation, then send your request again." },
+      "name": "Reply: not registered", "type": "n8n-nodes-base.microsoftOutlook", "typeVersion": 2, "position": [1120, 420] }
+  ],
+  "connections": {
+    "New email to service desk": { "main": [[{ "node": "Build signed callback", "type": "main", "index": 0 }]] },
+    "New Teams channel message": { "main": [[{ "node": "Build signed callback", "type": "main", "index": 0 }]] },
+    "Build signed callback": { "main": [[{ "node": "Open ticket in portal", "type": "main", "index": 0 }]] },
+    "Open ticket in portal": { "main": [[{ "node": "Unknown sender?", "type": "main", "index": 0 }]] },
+    "Unknown sender?": { "main": [[{ "node": "Reply: not registered", "type": "main", "index": 0 }], []] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

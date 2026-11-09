@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar"><div><div class="crumbs">Employee management</div><h1>{{ title }}</h1></div>
+<div>{% if user.is_global_admin or user.role == 'hr_admin' %}<a class="btn btn-primary" href="{% url 'lifecycle_create' kind %}">+ New {{ kind }} request</a>{% endif %}</div></div>
+<div class="card"><table><tr><th>Ticket</th><th>Employee</th><th>Status</th><th>Requested by</th><th>Created</th></tr>
+{% for t in page %}
+<tr><td><a href="{% url 'ticket_detail' t.pk %}">{{ t.number }}</a></td><td>{{ t.title }}</td>
+<td><span class="badge">{{ t.get_status_display }}</span></td><td>{{ t.requester.display_name }}</td><td>{{ t.created_at|date:"M j, Y" }}</td></tr>
+{% empty %}<tr><td colspan="5" class="empty">No {{ kind }} requests yet.</td></tr>{% endfor %}
+</table>
+<div class="row" style="margin-top:12px">{% if page.has_previous %}<a class="btn" href="?page={{ page.previous_page_number }}">&larr; Prev</a>{% endif %}
+{% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}">Next &rarr;</a>{% endif %}</div></div>
+{% endblock %}

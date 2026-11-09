@@ -1,0 +1,58 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-itsm}
+      POSTGRES_USER: ${POSTGRES_USER:-itsm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    restart: unless-stopped
+
+  api:
+    build: .
+    env_file: .env
+    depends_on: [db]
+    volumes: [media:/app/media]
+    command: sh -c "python manage.py migrate --noinput && gunicorn itsm.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+    expose: ["8000"]
+    restart: unless-stopped
+
+  worker:
+    # Replaces Celery: retries webhooks and emits overdue events on a loop.
+    build: .
+    env_file: .env
+    depends_on: [api]
+    command: sh -c "while true; do python manage.py retry_webhooks; python manage.py check_overdue; sleep 60; done"
+    restart: unless-stopped
+
+  web:
+    build: ./web
+    environment:
+      API_BASE_URL: http://api:8000
+    depends_on: [api]
+    expose: ["3000"]
+    restart: unless-stopped
+
+  n8n:
+    image: n8nio/n8n:latest
+    environment:
+      N8N_HOST: ${N8N_HOST:-n8n.example.com}
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-https://n8n.example.com/}
+      PORTAL_OUTBOUND_SECRET: ${N8N_WEBHOOK_SECRET}
+      PORTAL_INBOUND_SECRET: ${N8N_INBOUND_SECRET}
+      PORTAL_BASE_URL: ${PORTAL_BASE_URL}
+      PORTAL_APPROVER_EMAIL: ${PORTAL_APPROVER_EMAIL:-}
+      PORTAL_FROM_EMAIL: ${SMTP_FROM}
+    volumes: [n8ndata:/home/node/.n8n]
+    expose: ["5678"]
+    restart: unless-stopped
+
+  # Reverse proxy: point your existing Nginx/Portainer at these:
+  #   portal.example.com  -> web:3000   (Next.js UI; it calls api internally)
+  #   api.example.com     -> api:8000   (mobile apps and integrations)
+  #   n8n.example.com     -> n8n:5678
+
+volumes:
+  pgdata:
+  media:
+  n8ndata:

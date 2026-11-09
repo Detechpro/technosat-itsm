@@ -1,0 +1,216 @@
+{
+  "name": "IT Portal: event router",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "portal-events",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "name": "Portal webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst h = $json.headers || {};\nconst ts = h['x-portal-timestamp'];\nconst sig = h['x-portal-signature'];\nconst raw = $json.rawBody || JSON.stringify($json.body);\nconst secret = $env.PORTAL_OUTBOUND_SECRET;\nconst expected = 'sha256=' + crypto.createHmac('sha256', secret).update(`${ts}.${raw}`).digest('hex');\nconst fresh = Math.abs(Date.now()/1000 - Number(ts)) < 300;\nconst data = $json.body.data || {};\nconst valid = fresh && expected.length === (sig || '').length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig || ''));\nreturn [{ json: { valid, event: $json.body.event, data, event_id: $json.body.event_id,\n  callback: { action: 'ticket.add_comment', ticket: data.ticket, body: 'Workflow: ' + $json.body.event + ' notification sent to the approver.', internal: true } } }];"
+      },
+      "name": "Verify signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.valid }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Signature valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.event }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "approval.requested"
+            },
+            {
+              "value2": "ticket.overdue"
+            },
+            {
+              "value2": "lifecycle.completed"
+            }
+          ]
+        },
+        "fallbackOutput": "extra"
+      },
+      "name": "Route by event",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        900,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.PORTAL_FROM_EMAIL }}",
+        "toEmail": "={{ $env.PORTAL_APPROVER_EMAIL }}",
+        "subject": "=Approval needed: {{ $json.data.ticket }}",
+        "text": "={{ $json.data.title }} ({{ $json.data.ticket }}) is waiting for approval by {{ $json.data.requester }} in the IT Service Portal."
+      },
+      "name": "Email approver",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PORTAL_BASE_URL }}/api/v1/integrations/n8n/callback/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Event-Id",
+              "value": "={{ $json.event_id }}-comment"
+            },
+            {
+              "name": "X-Portal-Timestamp",
+              "value": "={{ Math.floor(Date.now()/1000) }}"
+            },
+            {
+              "name": "X-Portal-Signature",
+              "value": "={{ 'sha256=' + $crypto.createHmac('sha256', $env.PORTAL_INBOUND_SECRET).update(Math.floor(Date.now()/1000) + '.' + JSON.stringify($json.callback)).digest('hex') }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.callback }}",
+        "options": {}
+      },
+      "name": "Post comment to portal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1120,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "name": "Log other events",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        560
+      ]
+    }
+  ],
+  "connections": {
+    "Portal webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify signature": {
+      "main": [
+        [
+          {
+            "node": "Signature valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signature valid?": {
+      "main": [
+        [
+          {
+            "node": "Route by event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log other events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by event": {
+      "main": [
+        [
+          {
+            "node": "Email approver",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Post comment to portal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Post comment to portal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log other events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

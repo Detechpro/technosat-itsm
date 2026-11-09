@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar"><div><div class="crumbs">Administration</div><h1>Audit log</h1></div>
+<form method="get" class="row" style="max-width:420px"><input name="action" value="{{ action }}" placeholder="Filter by prefix, e.g. auth. or ticket.">
+<button class="btn" type="submit">Filter</button></form></div>
+<div class="card"><table><tr><th>When</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr>
+{% for log in page %}<tr><td>{{ log.created_at|date:"Y-m-d H:i:s" }}</td><td>{{ log.actor.username|default:"&mdash;" }}</td><td>{{ log.action }}</td>
+<td>{{ log.target_type }} {{ log.target_id }}</td><td class="muted">{{ log.metadata }}</td></tr>
+{% empty %}<tr><td colspan="5" class="empty">No entries.</td></tr>{% endfor %}</table>
+<div class="row" style="margin-top:12px">{% if page.has_previous %}<a class="btn" href="?page={{ page.previous_page_number }}&action={{ action }}">&larr; Prev</a>{% endif %}
+{% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}&action={{ action }}">Next &rarr;</a>{% endif %}</div></div>
+{% endblock %}

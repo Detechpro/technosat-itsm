@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar"><div><div class="crumbs">Service desk</div><h1>Tickets</h1></div>
+<div><a class="btn btn-primary" href="{% url 'ticket_create' %}">+ New request</a> <a class="btn" href="{% url 'ticket_export_csv' %}">Export CSV</a></div></div>
+<div class="card">
+<form method="get" class="row" style="margin-bottom:12px">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search number, title, description">
+  <select name="status"><option value="">All statuses</option>{% for v,l in status_choices %}<option value="{{ v }}" {% if filters.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <select name="priority"><option value="">All priorities</option>{% for v,l in priority_choices %}<option value="{{ v }}" {% if filters.priority == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <select name="category"><option value="">All categories</option>{% for v,l in category_choices %}<option value="{{ v }}" {% if filters.category == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <label style="margin:0;font-weight:400"><input type="checkbox" name="mine" value="1" style="width:auto" {% if filters.mine %}checked{% endif %}> Mine only</label>
+  <button class="btn" type="submit">Filter</button>
+</form>
+<table>
+<tr><th><a href="?sort={% if sort == 'number' %}-{% endif %}number">Number</a></th><th>Title</th><th>Category</th>
+<th><a href="?sort={% if sort == 'priority' %}-{% endif %}priority">Priority</a></th><th><a href="?sort={% if sort == 'status' %}-{% endif %}status">Status</a></th>
+<th>Requester</th><th>Assignee</th><th><a href="?sort={% if sort == 'due_date' %}-{% endif %}due_date">Due</a></th></tr>
+{% for t in page %}
+<tr><td><a href="{% url 'ticket_detail' t.pk %}">{{ t.number }}</a></td><td>{{ t.title }}</td><td>{{ t.get_category_display }}</td>
+<td><span class="badge">{{ t.get_priority_display }}</span></td>
+<td><span class="badge {% if t.status == 'resolved' or t.status == 'closed' %}b-ok{% elif t.status == 'rejected' or t.status == 'cancelled' %}b-bad{% else %}b-warn{% endif %}">{{ t.get_status_display }}</span>{% if t.is_overdue %} <span class="badge b-bad">overdue</span>{% endif %}</td>
+<td>{{ t.requester.display_name }}</td><td>{{ t.assignee.display_name|default:"&mdash;" }}</td>
+<td>{{ t.due_date|date:"M j, Y"|default:"&mdash;" }}</td></tr>
+{% empty %}<tr><td colspan="8" class="empty">No tickets match these filters.</td></tr>
+{% endfor %}
+</table>
+<div class="row" style="margin-top:12px">{% if page.has_previous %}<a class="btn" href="?page={{ page.previous_page_number }}">&larr; Prev</a>{% endif %}
+<span class="muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+{% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}">Next &rarr;</a>{% endif %}</div>
+</div>
+{% endblock %}

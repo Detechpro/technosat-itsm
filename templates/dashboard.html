@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load itsm_tags %}
+{% block content %}
+<div class="topbar"><div><div class="crumbs">Dashboard</div><h1>Hello, {{ user.first_name|default:user.username }}</h1></div>
+<form method="get" class="row" style="max-width:520px">
+  <select name="days"><option value="7" {% if days == "7" %}selected{% endif %}>Last 7 days</option>
+  <option value="30" {% if days == "30" %}selected{% endif %}>Last 30 days</option>
+  <option value="90" {% if days == "90" %}selected{% endif %}>Last 90 days</option>
+  <option value="0" {% if days == "0" %}selected{% endif %}>All time</option></select>
+  <select name="department"><option value="">All departments</option>{% for d in departments %}<option value="{{ d.pk }}" {% if dept_id == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
+  <button class="btn" type="submit">Apply</button></form></div>
+
+<div class="grid g-4" style="margin-bottom:16px">
+  <div class="card stat"><div class="n">{{ stats.total }}</div><div class="l">Total tickets</div></div>
+  <div class="card stat"><div class="n">{{ stats.open }}</div><div class="l">Open</div></div>
+  <div class="card stat"><div class="n">{{ stats.in_progress }}</div><div class="l">In progress</div></div>
+  <div class="card stat"><div class="n">{{ stats.pending_approvals }}</div><div class="l">Pending approvals</div></div>
+  <div class="card stat"><div class="n">{{ stats.overdue }}</div><div class="l">Overdue</div></div>
+  <div class="card stat"><div class="n">{{ stats.resolved }}</div><div class="l">Resolved</div></div>
+  {% if stats.employees is not None %}<div class="card stat"><div class="n">{{ stats.employees }}</div><div class="l">Active employees</div></div>
+  <div class="card stat"><div class="n">{{ stats.active_onboarding }}</div><div class="l">Active onboarding</div></div>
+  <div class="card stat"><div class="n">{{ stats.active_offboarding }}</div><div class="l">Active offboarding</div></div>{% endif %}
+  {% if stats.available_laptops is not None %}<div class="card stat"><div class="n">{{ stats.available_laptops }}</div><div class="l">Available laptops</div></div>
+  <div class="card stat"><div class="n">{{ stats.assigned_equipment }}</div><div class="l">Assigned equipment</div></div>{% endif %}
+</div>
+
+<div class="grid g-2">
+  <div class="card"><h2>Tickets by category</h2>
+    <table>{% for row in by_category %}<tr><td>{{ category_labels|get_item:row.category }}</td><td style="text-align:right">{{ row.n }}</td></tr>{% empty %}<tr><td class="muted">No data.</td></tr>{% endfor %}</table></div>
+  <div class="card"><h2>Tickets by priority</h2>
+    <table>{% for row in by_priority %}<tr><td>{{ priority_labels|get_item:row.priority }}</td><td style="text-align:right">{{ row.n }}</td></tr>{% empty %}<tr><td class="muted">No data.</td></tr>{% endfor %}</table></div>
+  <div class="card"><h2>Tickets by department</h2>
+    <table>{% for row in by_department %}<tr><td>{{ row.department__name|default:"Unassigned" }}</td><td style="text-align:right">{{ row.n }}</td></tr>{% empty %}<tr><td class="muted">No data.</td></tr>{% endfor %}</table></div>
+  <div class="card"><h2>Technician workload (open)</h2>
+    <table>{% for row in workload %}<tr><td>{{ row.assignee__username }}</td><td style="text-align:right">{{ row.n }}</td></tr>{% empty %}<tr><td class="muted">Nothing assigned.</td></tr>{% endfor %}</table></div>
+  <div class="card"><h2>Pending approvals</h2>
+    <ul class="plain">{% for a in pending %}<li><a href="{% url 'ticket_detail' a.ticket.pk %}">{{ a.ticket.number }}</a> {{ a.ticket.title }}</li>{% empty %}<li class="muted">None.</li>{% endfor %}</ul></div>
+  <div class="card"><h2>Overdue tasks</h2>
+    <ul class="plain">{% for t in overdue_tasks %}<li><a href="{% url 'ticket_detail' t.ticket.pk %}">{{ t.ticket.number }}</a> {{ t.title }} <span class="badge b-bad">overdue</span></li>{% empty %}<li class="muted">None.</li>{% endfor %}</ul></div>
+  <div class="card"><h2>Upcoming onboarding</h2>
+    <ul class="plain">{% for o in upcoming %}<li>{{ o.employee_name }} &middot; {{ o.job_title }} &middot; {{ o.joining_date }}</li>{% empty %}<li class="muted">None.</li>{% endfor %}</ul></div>
+  {% if activity %}<div class="card"><h2>Recent activity</h2>
+    <ul class="plain timeline">{% for a in activity %}<li><strong>{{ a.action }}</strong> <span class="muted">{{ a.actor.username|default:"system" }} &middot; {{ a.created_at|date:"M j, H:i" }}</span></li>{% endfor %}</ul></div>{% endif %}
+</div>
+{% endblock %}

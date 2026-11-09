@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar"><div><div class="crumbs">Service desk</div><h1>Service catalog</h1></div></div>
+<div class="grid g-2">
+{% for group, category, items in catalog %}
+<div class="card"><h2>{{ group }}</h2><ul class="plain">
+{% for item in items %}<li style="padding:5px 0"><a href="{% url 'ticket_create' %}?category={{ category }}&title={{ item|urlencode }}">{{ item }}</a></li>{% endfor %}
+</ul></div>
+{% endfor %}
+</div>
+{% endblock %}

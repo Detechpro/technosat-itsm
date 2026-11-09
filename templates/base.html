@@ -1,0 +1,40 @@
+{% load static %}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ title|default:"IT Service Portal" }}</title>
+<link rel="stylesheet" href="{% static 'css/app.css' %}"></head>
+<body>
+{% if user.is_authenticated %}
+<div class="layout">
+<nav class="side">
+  <div class="brand">IT Service Portal</div>
+  <a href="{% url 'dashboard' %}">Dashboard</a>
+  <h6>Service desk</h6>
+  <a href="{% url 'ticket_list' %}">All tickets</a>
+  <a href="{% url 'ticket_list' %}?mine=1">My tickets</a>
+  <a href="{% url 'my_tasks' %}">My tasks</a>
+  <a href="{% url 'catalog' %}">Service catalog</a>
+  {% if user.role == 'manager' or user.is_global_admin %}<a href="{% url 'approvals' %}">Approvals</a>{% endif %}
+  {% if user.is_global_admin or user.role == 'hr_admin' or user.role == 'manager' %}
+  <h6>Employee management</h6>
+  <a href="{% url 'lifecycle_list' 'onboarding' %}">Onboarding</a>
+  <a href="{% url 'lifecycle_list' 'offboarding' %}">Offboarding</a>
+  {% endif %}
+  {% if user.is_global_admin or user.role == 'asset_manager' or user.role == 'technician' %}
+  <h6>IT assets</h6><a href="{% url 'asset_list' %}">Asset inventory</a>
+  {% endif %}
+  {% if user.is_global_admin or user.role == 'it_admin' or user.role == 'super_admin' %}
+  <h6>Administration</h6>
+  <a href="{% url 'user_list' %}">Users and invitations</a>
+  <a href="{% url 'm365_status' %}">Microsoft 365</a>
+  {% endif %}
+  {% if user.role == 'super_admin' or user.is_superuser %}<a href="{% url 'audit_log' %}">Audit log</a>{% endif %}
+  <h6>Reports</h6><a href="{% url 'ticket_export_csv' %}">Export tickets (CSV)</a>
+  <div style="margin-top:24px;font-size:12px;color:#7a859c">{{ user.display_name }}<br>{{ user.get_role_display }}</div>
+  <form method="post" action="{% url 'logout' %}" style="margin-top:8px">{% csrf_token %}<button class="btn" type="submit">Sign out</button></form>
+</nav>
+<main class="main">
+{% endif %}
+{% if messages %}{% for m in messages %}<div class="msg msg-{{ m.tags|default:'info' }}">{{ m }}</div>{% endfor %}{% endif %}
+{% block content %}{% endblock %}
+{% if user.is_authenticated %}</main></div>{% endif %}
+</body></html>

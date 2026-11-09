@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar"><div><div class="crumbs">Service desk</div><h1>Approvals</h1></div></div>
+<div class="card"><h2>Pending</h2>
+{% for a in pending %}
+<div style="border-bottom:1px solid var(--border);padding:12px 0">
+  <strong><a href="{% url 'ticket_detail' a.ticket.pk %}">{{ a.ticket.number }}</a> {{ a.ticket.title }}</strong>
+  <div class="muted">Requested by {{ a.ticket.requester.display_name }} &middot; {{ a.ticket.get_category_display }} &middot; {{ a.ticket.created_at|date:"M j, Y" }}</div>
+  <form method="post" action="{% url 'approval_decide' a.pk %}" class="row" style="margin-top:8px">{% csrf_token %}
+    <input name="comment" placeholder="Comment (optional)">
+    <button class="btn btn-primary" name="decision" value="approved" type="submit">Approve</button>
+    <button class="btn btn-danger" name="decision" value="rejected" type="submit">Reject</button>
+  </form>
+</div>
+{% empty %}<div class="empty">Nothing waiting for your approval.</div>{% endfor %}
+</div>
+<div class="card"><h2>Your decisions</h2><table><tr><th>Ticket</th><th>Decision</th><th>When</th><th>Comment</th></tr>
+{% for a in history %}<tr><td><a href="{% url 'ticket_detail' a.ticket.pk %}">{{ a.ticket.number }}</a></td><td>{{ a.get_decision_display }}</td><td>{{ a.decided_at|date:"M j, H:i" }}</td><td>{{ a.comment }}</td></tr>
+{% empty %}<tr><td colspan="4" class="empty">No decisions yet.</td></tr>{% endfor %}</table></div>
+{% endblock %}

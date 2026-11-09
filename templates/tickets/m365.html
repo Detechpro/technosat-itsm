@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar"><div><div class="crumbs">Administration</div><h1>Microsoft 365 integration</h1></div></div>
+<div class="card">
+<p><strong>Mode:</strong> <span class="badge {% if mode == 'live' %}b-warn{% endif %}">{{ mode }}</span>
+{% if mode != 'live' %}<span class="muted">Dry run: actions are reported, never executed in the tenant.</span>{% endif %}</p>
+<table>
+<tr><th>Tenant ID (M365_TENANT_ID)</th><td>{% if tenant_set %}<span class="badge b-ok">set</span>{% else %}<span class="badge b-bad">missing</span>{% endif %}</td></tr>
+<tr><th>Client ID (M365_CLIENT_ID)</th><td>{% if client_id_set %}<span class="badge b-ok">set</span>{% else %}<span class="badge b-bad">missing</span>{% endif %}</td></tr>
+<tr><th>Client secret (M365_CLIENT_SECRET)</th><td>{% if secret_set %}<span class="badge b-ok">set (hidden)</span>{% else %}<span class="badge b-bad">missing</span>{% endif %}</td></tr>
+<tr><th>Default license SKU (M365_DEFAULT_LICENSE_SKU_ID)</th><td>{% if license_set %}<span class="badge b-ok">set</span>{% else %}<span class="badge b-warn">not set</span>{% endif %}</td></tr>
+</table>
+<p class="muted">Secrets are read from environment variables only and are never displayed or stored in the database.</p>
+<form method="post">{% csrf_token %}<button class="btn btn-primary" type="submit">Test connection</button></form>
+{% if result %}<div class="msg {% if result.ok %}msg-success{% else %}msg-error{% endif %}" style="margin-top:12px">{{ result.message }}</div>{% endif %}
+</div>
+<div class="card"><h2>Automated steps</h2>
+<p class="muted">Onboarding and offboarding tasks can run Microsoft Graph actions: create user, assign license, disable account, revoke sessions. Runs are manual (button on each task) and every run is audited. Scheduled execution at the termination time is not implemented yet.</p></div>
+{% endblock %}
