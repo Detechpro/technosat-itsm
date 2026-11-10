@@ -2,7 +2,7 @@
 
 The Next.js app starts the flow and handles the redirect. Django exchanges the code, verifies the
 identity, and maps it to an existing active portal user. Users are never created by SSO: invitation is
-still required. Only roles listed in SSO_ALLOWED_ROLES may sign in with Microsoft.
+still required. Only administrator roles (ALLOWED_SSO_ROLES in accounts/api.py) and superusers may sign in with Microsoft.
 """
 import secrets
 
