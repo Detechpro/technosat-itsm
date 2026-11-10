@@ -37,8 +37,9 @@ services:
     environment:
       API_BASE_URL: http://api:8000
       PUBLIC_URL: ${PUBLIC_URL:-https://portal.example.com}
+      PORT: ${WEB_PORT:-3000}   # set WEB_PORT in Portainer to change the port
     depends_on: [api]
-    expose: ["3000"]
+    expose: ["${WEB_PORT:-3000}"]
     restart: unless-stopped
 
   n8n:
