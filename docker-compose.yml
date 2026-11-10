@@ -10,7 +10,9 @@ services:
 
   api:
     build: .
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false   # Portainer sets variables in its UI instead
     depends_on: [db]
     environment:
       # Web calls the API by its service name, so Django must accept that host.
@@ -23,7 +25,9 @@ services:
   worker:
     # Replaces Celery: retries webhooks and emits overdue events on a loop.
     build: .
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false   # Portainer sets variables in its UI instead
     depends_on: [api]
     command: sh -c "while true; do python manage.py retry_webhooks; python manage.py check_overdue; sleep 60; done"
     restart: unless-stopped
@@ -44,7 +48,7 @@ services:
       WEBHOOK_URL: ${N8N_WEBHOOK_URL:-https://n8n.example.com/}
       PORTAL_OUTBOUND_SECRET: ${N8N_WEBHOOK_SECRET}
       PORTAL_INBOUND_SECRET: ${N8N_INBOUND_SECRET}
-      PORTAL_BASE_URL: ${PORTAL_BASE_URL}
+      PORTAL_BASE_URL: ${N8N_PORTAL_URL:-http://api:8000}   # internal network: n8n never needs the public API
       PORTAL_APPROVER_EMAIL: ${PORTAL_APPROVER_EMAIL:-}
       PORTAL_FROM_EMAIL: ${SMTP_FROM}
     volumes: [n8ndata:/home/node/.n8n]
