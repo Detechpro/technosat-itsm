@@ -154,9 +154,10 @@ def ticket_create(request):
     if request.method == "POST" and form.is_valid():
         try:
             ticket = services.create_ticket(
-                request.user, title=form.cleaned_data["title"], description=form.cleaned_data["description"],
-                category=form.cleaned_data["category"], priority=form.cleaned_data["priority"],
-                due_date=form.cleaned_data["due_date"])
+                request.user, title=form.cleaned_data["title"], title_ar=form.cleaned_data["title_ar"],
+                description=form.cleaned_data["description"], description_ar=form.cleaned_data["description_ar"],
+                source_language=form.cleaned_data["source_language"], category=form.cleaned_data["category"],
+                priority=form.cleaned_data["priority"], due_date=form.cleaned_data["due_date"])
         except ValidationError as exc:
             form.add_error(None, exc.messages)
         else:

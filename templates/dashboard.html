@@ -36,7 +36,7 @@
   <div class="card"><h2>Pending approvals</h2>
     <ul class="plain">{% for a in pending %}<li><a href="{% url 'ticket_detail' a.ticket.pk %}">{{ a.ticket.number }}</a> {{ a.ticket.title }}</li>{% empty %}<li class="muted">None.</li>{% endfor %}</ul></div>
   <div class="card"><h2>Overdue tasks</h2>
-    <ul class="plain">{% for t in overdue_tasks %}<li><a href="{% url 'ticket_detail' t.ticket.pk %}">{{ t.ticket.number }}</a> {{ t.title }} <span class="badge b-bad">overdue</span></li>{% empty %}<li class="muted">None.</li>{% endfor %}</ul></div>
+    <ul class="plain">{% for t in overdue_tasks %}<li><a href="{% url 'ticket_detail' t.ticket.pk %}">{{ t.ticket.number }}</a> {{ t.display_title }} <span class="badge b-bad">overdue</span></li>{% empty %}<li class="muted">None.</li>{% endfor %}</ul></div>
   <div class="card"><h2>Upcoming onboarding</h2>
     <ul class="plain">{% for o in upcoming %}<li>{{ o.employee_name }} &middot; {{ o.job_title }} &middot; {{ o.joining_date }}</li>{% empty %}<li class="muted">None.</li>{% endfor %}</ul></div>
   {% if activity %}<div class="card"><h2>Recent activity</h2>

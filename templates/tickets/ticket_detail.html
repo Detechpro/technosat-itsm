@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="topbar"><div><div class="crumbs"><a href="{% url 'ticket_list' %}">Tickets</a> / {{ ticket.number }}</div>
-<h1>{{ ticket.title }}</h1>
+<h1>{{ ticket.display_title }}</h1>
 <div class="row" style="flex:0 0 auto"><span class="badge">{{ ticket.get_category_display }}</span> <span class="badge">{{ ticket.get_priority_display }}</span>
 <span class="badge {% if ticket.status == 'resolved' or ticket.status == 'closed' %}b-ok{% elif ticket.status == 'rejected' %}b-bad{% else %}b-warn{% endif %}">{{ ticket.get_status_display }}</span>
 {% if ticket.is_overdue %}<span class="badge b-bad">overdue</span>{% endif %}</div></div></div>

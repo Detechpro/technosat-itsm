@@ -4,7 +4,7 @@
 <div class="card"><table>
 <tr><th>Task</th><th>Ticket</th><th>Due</th><th>Status</th><th></th></tr>
 {% for t in tasks %}
-<tr><td>{{ t.title }}</td><td><a href="{% url 'ticket_detail' t.ticket.pk %}">{{ t.ticket.number }}</a> {{ t.ticket.title }}</td>
+<tr><td>{{ t.display_title }}</td><td><a href="{% url 'ticket_detail' t.ticket.pk %}">{{ t.ticket.number }}</a> {{ t.ticket.title }}</td>
 <td>{{ t.due_date|date:"M j, Y"|default:"&mdash;" }}</td><td><span class="badge {% if t.status == 'done' %}b-ok{% endif %}">{{ t.get_status_display }}</span></td>
 <td><form method="post" action="{% url 'task_update' t.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="next" value="{% url 'my_tasks' %}">
 <input type="hidden" name="done" value="{% if t.status == 'done' %}0{% else %}1{% endif %}">

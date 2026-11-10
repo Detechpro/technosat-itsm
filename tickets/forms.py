@@ -18,18 +18,26 @@ def _approver_queryset():
 
 class TicketForm(forms.ModelForm):
     category = forms.ChoiceField(choices=SELF_SERVICE_CATEGORIES)
+    source_language = forms.ChoiceField(choices=[("en", "English"), ("ar", "Arabic")], required=False, initial="en")
     due_date = forms.DateTimeField(required=False, widget=forms.DateTimeInput(attrs={"type": "datetime-local"}))
 
     class Meta:
         model = Ticket
-        fields = ["title", "description", "category", "priority", "due_date"]
-        widgets = {"description": forms.Textarea(attrs={"rows": 5})}
+        fields = ["title", "title_ar", "description", "description_ar", "source_language", "category", "priority", "due_date"]
+        widgets = {"description": forms.Textarea(attrs={"rows": 4}),
+                   "description_ar": forms.Textarea(attrs={"rows": 4, "dir": "rtl"}),
+                   "title_ar": forms.TextInput(attrs={"dir": "rtl"})}
 
-    def clean_title(self):
-        title = self.cleaned_data["title"].strip()
-        if len(title) < 5:
-            raise ValidationError("Please give a short but descriptive title (at least 5 characters).")
-        return title
+    def clean(self):
+        cleaned = super().clean()
+        cleaned["source_language"] = cleaned.get("source_language") or "en"
+        if not (cleaned.get("title") or cleaned.get("title_ar")):
+            raise ValidationError("Enter the title in English, Arabic, or both.")
+        for key in ("title", "title_ar"):
+            value = (cleaned.get(key) or "").strip()
+            if value and len(value) < 5:
+                raise ValidationError("Titles need at least 5 characters.")
+        return cleaned
 
 
 class CommentForm(forms.Form):

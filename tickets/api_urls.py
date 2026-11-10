@@ -13,6 +13,8 @@ router.register("tasks", TaskViewSet, basename="task")
 
 urlpatterns = [
     path("auth/token/", account_api.obtain_token, name="api_token"),
+    path("auth/otp/request/", account_api.otp_request, name="api_otp_request"),
+    path("auth/otp/verify/", account_api.otp_verify, name="api_otp_verify"),
     path("auth/me/", account_api.me, name="api_me"),
     path("auth/logout/", account_api.logout_token, name="api_logout"),
     path("auth/sso/start/", account_api.sso_start, name="api_sso_start"),

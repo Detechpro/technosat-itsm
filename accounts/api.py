@@ -8,6 +8,8 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 
+from . import otp
+from .audit import record
 from .models import Role, User
 
 
@@ -19,7 +21,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "username", "email", "display_name", "role", "role_label", "is_global_admin",
-                  "department", "manager"]
+                  "department", "manager", "preferred_language"]
 
 
 class LoginThrottle(AnonRateThrottle):
@@ -43,9 +45,64 @@ def obtain_token(request):
     return Response({"token": token.key, "user": UserSerializer(user).data})
 
 
-@api_view(["GET"])
+class OtpThrottle(AnonRateThrottle):
+    scope = "otp"  # own bucket, so code requests and password logins do not share a limit
+    rate = "10/minute"
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def otp_request(request):
+    """Email a sign-in code. Always returns the same answer, so it cannot reveal which emails have accounts."""
+    if not OtpThrottle().allow_request(request, None):
+        return Response({"error": {"code": "throttled", "message": "Too many attempts. Try again shortly."}},
+                        status=status.HTTP_429_TOO_MANY_REQUESTS)
+    user = otp.find_user(str(request.data.get("email", "")).strip().lower()[:254])
+    if user is not None:
+        code = otp.issue(user)
+        if code is not None:
+            try:
+                otp.send(user, code)
+                record(user, "auth.otp_sent", user)
+            except Exception:  # never reveal a mail failure to the caller
+                import logging
+                logging.getLogger(__name__).exception("OTP email failed")
+    return Response({"ok": True})
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def otp_verify(request):
+    """Exchange an emailed code for an API token."""
+    if not OtpThrottle().allow_request(request, None):
+        return Response({"error": {"code": "throttled", "message": "Too many attempts. Try again shortly."}},
+                        status=status.HTTP_429_TOO_MANY_REQUESTS)
+    email = str(request.data.get("email", "")).strip().lower()[:254]
+    code = str(request.data.get("code", "")).strip()
+    user = otp.find_user(email)
+    if user is None or not code.isdigit() or len(code) != 6 or not otp.verify(user, code):
+        if user is not None:
+            record(user, "auth.otp_failed", user)
+        return Response({"error": {"code": "invalid_code", "message": "The code is invalid or has expired."}},
+                        status=status.HTTP_401_UNAUTHORIZED)
+    token, _ = Token.objects.get_or_create(user=user)
+    record(user, "auth.otp_login", user)
+    return Response({"token": token.key, "user": UserSerializer(user).data})
+
+
+@api_view(["GET", "PATCH"])
+@permission_classes([IsAuthenticated])
 @permission_classes([IsAuthenticated])
 def me(request):
+    """GET returns the signed-in user. PATCH lets the user change their interface language (en or ar)."""
+    if request.method == "PATCH":
+        lang = request.data.get("preferred_language")
+        if lang not in ("en", "ar"):
+            return Response({"error": {"code": "invalid", "message": "Use 'en' or 'ar'."}}, status=400)
+        request.user.preferred_language = lang
+        request.user.save(update_fields=["preferred_language", "updated_at"])
     return Response(UserSerializer(request.user).data)
 
 

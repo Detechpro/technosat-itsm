@@ -5,6 +5,8 @@ import { api, ApiError } from "./api";
 import type { User } from "./types";
 
 export const SESSION_COOKIE = "itsm_session";
+/** Holds the email while a sign-in code is pending. Short-lived and httpOnly. */
+export const OTP_COOKIE = "itsm_otp_email";
 
 export async function getToken(): Promise<string | null> {
   return (await cookies()).get(SESSION_COOKIE)?.value ?? null;

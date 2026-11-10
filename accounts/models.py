@@ -43,6 +43,7 @@ class User(AbstractUser):
     department = models.ForeignKey(Department, null=True, blank=True, on_delete=models.SET_NULL, related_name="users")
     manager = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="reports")
     employee_id = models.CharField(max_length=40, blank=True)
+    preferred_language = models.CharField(max_length=2, choices=[("en", "English"), ("ar", "العربية")], default="en")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -136,3 +137,16 @@ def log_login(sender, request, user, **kwargs):
 def log_login_failed(sender, credentials, request=None, **kwargs):
     AuditLog.objects.create(action="auth.login_failed", metadata={
         "username": credentials.get("username", ""), "ip": _ip(request)})
+
+
+class LoginCode(TimestampedModel):
+    """One-time sign-in code. Only a keyed hash is stored, never the code itself."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="login_codes")
+    code_hash = models.CharField(max_length=64)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["user", "created_at"])]

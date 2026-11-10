@@ -38,6 +38,17 @@ class Priority(models.TextChoices):
     LOW = "low", "Low"
 
 
+# Arabic labels for system values. The English values stay the same in the database.
+LABELS_AR = {
+    "category": {"onboarding": "تهيئة موظف", "offboarding": "إنهاء خدمة موظف", "email": "خدمات البريد الإلكتروني",
+                 "equipment": "معدات تقنية", "support": "الدعم الفني", "network_security": "الشبكة والأمن",
+                 "smtp": "خدمات SMTP", "general": "عام"},
+    "priority": {"critical": "حرجة", "high": "عالية", "medium": "متوسطة", "low": "منخفضة"},
+    "status": {"new": "جديدة", "submitted": "مُقدَّمة", "pending_approval": "بانتظار الموافقة", "approved": "معتمدة",
+               "assigned": "مُسندة", "in_progress": "قيد التنفيذ", "waiting_for_user": "بانتظار المستخدم",
+               "on_hold": "معلّقة", "resolved": "تم الحل", "closed": "مغلقة", "rejected": "مرفوضة", "cancelled": "ملغاة"},
+}
+
 CLOSED_STATUSES = {Status.RESOLVED, Status.CLOSED, Status.REJECTED, Status.CANCELLED}
 OPEN_STATUSES = [s for s in Status.values if s not in CLOSED_STATUSES]
 # Categories whose work must not start until a manager approves.
@@ -60,8 +71,11 @@ def next_ticket_number():
 
 class Ticket(TimestampedModel):
     number = models.CharField(max_length=20, unique=True, editable=False)
-    title = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
+    title = models.CharField(max_length=200, blank=True, help_text="English title")
+    title_ar = models.CharField(max_length=200, blank=True, help_text="Arabic title")
+    description = models.TextField(blank=True, help_text="English description")
+    description_ar = models.TextField(blank=True, help_text="Arabic description")
+    source_language = models.CharField(max_length=2, choices=[("en", "English"), ("ar", "Arabic")], default="en")
     category = models.CharField(max_length=30, choices=Category.choices, default=Category.GENERAL, db_index=True)
     priority = models.CharField(max_length=10, choices=Priority.choices, default=Priority.MEDIUM, db_index=True)
     status = models.CharField(max_length=30, choices=Status.choices, default=Status.NEW, db_index=True)
@@ -75,6 +89,9 @@ class Ticket(TimestampedModel):
     resolved_at = models.DateTimeField(null=True, blank=True)
     closed_at = models.DateTimeField(null=True, blank=True)
     overdue_notified_at = models.DateTimeField(null=True, blank=True)
+    sla_response_due = models.DateTimeField(null=True, blank=True, db_index=True)
+    sla_resolution_due = models.DateTimeField(null=True, blank=True, db_index=True)
+    first_responded_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -86,11 +103,43 @@ class Ticket(TimestampedModel):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.number} {self.title}"
+        return f"{self.number} {self.display_title}"
+
+    @property
+    def display_title(self):
+        return self.title or self.title_ar
 
     @property
     def is_open(self):
         return self.status not in CLOSED_STATUSES
+
+    @property
+    def response_status(self):
+        """met | breached | running | stopped | none"""
+        if not self.sla_response_due:
+            return "none"
+        if self.first_responded_at:
+            return "met" if self.first_responded_at <= self.sla_response_due else "breached"
+        if not self.is_open:
+            return "stopped"
+        return "breached" if timezone.now() > self.sla_response_due else "running"
+
+    @property
+    def resolution_status(self):
+        """met | breached | running | stopped | none"""
+        if not self.sla_resolution_due:
+            return "none"
+        if self.resolved_at:
+            return "met" if self.resolved_at <= self.sla_resolution_due else "breached"
+        if not self.is_open:
+            return "stopped"
+        return "breached" if timezone.now() > self.sla_resolution_due else "running"
+
+    @property
+    def sla_at_risk(self):
+        from .sla import AT_RISK_WINDOW
+        return (self.resolution_status == "running"
+                and self.sla_resolution_due - timezone.now() <= AT_RISK_WINDOW)
 
     @property
     def is_overdue(self):
@@ -228,3 +277,18 @@ class Asset(TimestampedModel):
 
     def __str__(self):
         return f"{self.asset_tag} {self.name}"
+
+
+class SlaPolicy(models.Model):
+    """Response and resolution targets for one priority. Overrides the ITIL defaults in tickets/sla.py."""
+    priority = models.CharField(max_length=10, choices=Priority.choices, unique=True)
+    response_minutes = models.PositiveIntegerField(help_text="Minutes until IT first responds")
+    resolution_minutes = models.PositiveIntegerField(help_text="Minutes until the request is resolved")
+
+    class Meta:
+        ordering = ["response_minutes"]
+        verbose_name = "SLA policy"
+        verbose_name_plural = "SLA policies"
+
+    def __str__(self):
+        return f"{self.get_priority_display()}: {self.response_minutes} min / {self.resolution_minutes} min"

@@ -16,7 +16,7 @@
 <th><a href="?sort={% if sort == 'priority' %}-{% endif %}priority">Priority</a></th><th><a href="?sort={% if sort == 'status' %}-{% endif %}status">Status</a></th>
 <th>Requester</th><th>Assignee</th><th><a href="?sort={% if sort == 'due_date' %}-{% endif %}due_date">Due</a></th></tr>
 {% for t in page %}
-<tr><td><a href="{% url 'ticket_detail' t.pk %}">{{ t.number }}</a></td><td>{{ t.title }}</td><td>{{ t.get_category_display }}</td>
+<tr><td><a href="{% url 'ticket_detail' t.pk %}">{{ t.number }}</a></td><td>{{ t.display_title }}</td><td>{{ t.get_category_display }}</td>
 <td><span class="badge">{{ t.get_priority_display }}</span></td>
 <td><span class="badge {% if t.status == 'resolved' or t.status == 'closed' %}b-ok{% elif t.status == 'rejected' or t.status == 'cancelled' %}b-bad{% else %}b-warn{% endif %}">{{ t.get_status_display }}</span>{% if t.is_overdue %} <span class="badge b-bad">overdue</span>{% endif %}</td>
 <td>{{ t.requester.display_name }}</td><td>{{ t.assignee.display_name|default:"&mdash;" }}</td>

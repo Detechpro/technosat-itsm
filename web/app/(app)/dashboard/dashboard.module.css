@@ -1,0 +1,147 @@
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.head h1 { margin: 0; }
+.sub { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line, #dfe3e8);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--card, #fff);
+}
+.seg a {
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+}
+.seg a + a { border-left: 1px solid var(--line, #dfe3e8); }
+.seg a.on { background: var(--brand, #1b6cb0); color: #fff; }
+.refresh {
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid var(--line, #dfe3e8);
+  color: var(--text, #1d2433);
+  text-decoration: none;
+  background: var(--card, #fff);
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.kpi {
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--card, #fff);
+  border: 1px solid var(--line, #dfe3e8);
+  color: inherit;
+  text-decoration: none;
+  display: block;
+  min-width: 0;
+}
+.dark {
+  background: var(--side, #13324f);
+  border-color: var(--side, #13324f);
+  color: #fff;
+}
+.v { font-size: 26px; font-weight: 700; line-height: 1.1; }
+.k { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.dark .k { color: #b9d3ea; }
+.sevBad { color: #b42318; }
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.panel {
+  border-radius: 12px;
+  padding: 18px;
+  background: var(--card, #fff);
+  border: 1px solid var(--line, #dfe3e8);
+  min-width: 0;
+}
+.panelHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.panelHead h2 { margin: 0; font-size: 16px; }
+.panelHead a { font-size: 13px; color: var(--brand, #1b6cb0); text-decoration: none; font-weight: 600; }
+.row {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) 110px;
+  white-space: nowrap;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--line, #eef1f4);
+  font-size: 14px;
+  color: inherit;
+  text-decoration: none;
+}
+.num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--muted); }
+.ttl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.rowBadge { justify-self: end; }
+.bars { display: grid; gap: 12px; }
+.barRow { display: grid; gap: 6px; }
+.barLabel { display: flex; justify-content: space-between; font-size: 13px; }
+.barLabel span:last-child { color: var(--muted); }
+.barTrack { height: 8px; border-radius: 99px; background: var(--brand-soft, #e8f1f9); overflow: hidden; }
+.barFill { height: 100%; background: var(--brand, #1b6cb0); border-radius: 99px; }
+
+.sla {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 8px 0 16px;
+}
+.sla .v { font-size: 22px; }
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 8px 0 16px;
+}
+.action {
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--card, #fff);
+  border: 1px solid var(--line, #dfe3e8);
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+.action strong { display: block; font-size: 15px; margin-bottom: 4px; }
+.action span { font-size: 13px; color: var(--muted); display: block; }
+.go { margin-top: 10px; font-weight: 600; color: var(--brand, #1b6cb0) !important; }
+
+.empty { color: var(--muted); font-size: 14px; padding: 12px 0; }
+.sectionTitle { font-size: 16px; margin: 4px 0 0; }
+
+@media (max-width: 1100px) {
+  .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .split { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sla { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .actions { grid-template-columns: 1fr; }
+  .row { grid-template-columns: 1fr; gap: 4px; }
+}

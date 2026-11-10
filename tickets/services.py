@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from accounts.audit import record
 from accounts.models import Role, User
-from accounts.permissions import can_change_status, can_assign_tickets
+from accounts.permissions import can_change_status, can_assign_tickets, is_it_staff
 from integrations.n8n import emit
 
 from .models import (APPROVAL_CATEGORIES, Approval, Category, OffboardingRequest, OnboardingRequest, Priority,
@@ -49,7 +49,8 @@ def _notify(user, subject, body):
 
 
 def _ticket_payload(ticket):
-    return {"ticket": ticket.number, "title": ticket.title, "category": ticket.category,
+    return {"ticket": ticket.number, "title": ticket.display_title, "title_en": ticket.title,
+            "title_ar": ticket.title_ar, "category": ticket.category,
             "status": ticket.status, "priority": ticket.priority, "requester": ticket.requester.username,
             "assignee": ticket.assignee.username if ticket.assignee_id else None}
 
@@ -63,20 +64,30 @@ def _default_assignee(role):
 
 
 @transaction.atomic
-def create_ticket(requester, *, title, description="", category=Category.GENERAL,
-                  priority=Priority.MEDIUM, due_date=None, approver=None):
+def create_ticket(requester, *, title="", title_ar="", description="", description_ar="", category=Category.GENERAL,
+                  priority=Priority.MEDIUM, due_date=None, approver=None, source_language="en"):
+    title, title_ar = (title or "").strip(), (title_ar or "").strip()
+    if not (title or title_ar):
+        raise ValidationError("Enter the request title in English, Arabic, or both.")
+    if source_language not in ("en", "ar"):
+        source_language = "en"
     if category in APPROVAL_CATEGORIES:
         approver = approver or requester.manager
         if approver is None:
             raise ValidationError("This request type needs a manager approver. Set a reporting manager first.")
+    from .sla import due_times
+    response_due, resolution_due = due_times(priority)
     ticket = Ticket.objects.create(
-        title=title, description=description, category=category, priority=priority, due_date=due_date,
+        title=title, title_ar=title_ar, description=description, description_ar=description_ar,
+        source_language=source_language, category=category, priority=priority, due_date=due_date,
         requester=requester, department=requester.department, approver=approver,
         status=Status.PENDING_APPROVAL if category in APPROVAL_CATEGORIES else Status.SUBMITTED,
+        sla_response_due=response_due, sla_resolution_due=resolution_due,
     )
     if category in APPROVAL_CATEGORIES:
         Approval.objects.create(ticket=ticket, approver=approver, level=1)
-        _notify(approver, f"Approval required: {ticket.number}", f"{requester.display_name} submitted: {title}")
+        _notify(approver, f"Approval required: {ticket.number}",
+                f"{requester.display_name} submitted: {ticket.display_title}")
     _log(ticket, requester, "ticket.created", category=category)
     emit("ticket.created", _ticket_payload(ticket))
     if category in APPROVAL_CATEGORIES:
@@ -88,6 +99,7 @@ def create_ticket(requester, *, title, description="", category=Category.GENERAL
 def create_onboarding(hr_user, *, ticket_data, details):
     ticket = create_ticket(hr_user, approver=ticket_data.get("approver"), category=Category.ONBOARDING,
                            title=f"Onboarding: {details['employee_name']}",
+                           title_ar=f"تهيئة موظف: {details['employee_name']}",
                            description=details.get("notes", ""), priority=Priority.HIGH,
                            due_date=ticket_data.get("due_date"))
     OnboardingRequest.objects.create(ticket=ticket, **{k: v for k, v in details.items() if k != "notes"})
@@ -98,6 +110,7 @@ def create_onboarding(hr_user, *, ticket_data, details):
 def create_offboarding(hr_user, *, ticket_data, details):
     ticket = create_ticket(hr_user, approver=ticket_data.get("approver"), category=Category.OFFBOARDING,
                            title=f"Offboarding: {details['employee_name']}",
+                           title_ar=f"إنهاء خدمة موظف: {details['employee_name']}",
                            description=details.get("notes", ""), priority=Priority.CRITICAL,
                            due_date=details["termination_at"])
     OffboardingRequest.objects.create(ticket=ticket, **{k: v for k, v in details.items() if k != "notes"})
@@ -135,12 +148,12 @@ def decide_approval(approval, actor, decision, comment=""):
         ticket.save(update_fields=["status", "updated_at"])
         if ticket.category in (Category.ONBOARDING, Category.OFFBOARDING):
             _generate_tasks(ticket)
-        _notify(ticket.requester, f"Approved: {ticket.number}", f"{ticket.title} was approved.")
+        _notify(ticket.requester, f"Approved: {ticket.number}", f"{ticket.display_title} was approved.")
     else:
         ticket.status = Status.REJECTED
         ticket.closed_at = timezone.now()
         ticket.save(update_fields=["status", "closed_at", "updated_at"])
-        _notify(ticket.requester, f"Rejected: {ticket.number}", f"{ticket.title} was rejected. {comment}")
+        _notify(ticket.requester, f"Rejected: {ticket.number}", f"{ticket.display_title} was rejected. {comment}")
 
 
 @transaction.atomic
@@ -152,6 +165,7 @@ def change_status(ticket, actor, new_status):
     old = ticket.status
     ticket.status = new_status
     now = timezone.now()
+    _first_response(ticket, actor)
     if new_status == Status.RESOLVED:
         ticket.resolved_at = now
     if new_status == Status.CLOSED:
@@ -160,7 +174,7 @@ def change_status(ticket, actor, new_status):
     _log(ticket, actor, "ticket.status_changed", old=old, new=new_status)
     emit("ticket.status_changed", {**_ticket_payload(ticket), "old_status": old})
     if new_status in (Status.RESOLVED, Status.CLOSED):
-        _notify(ticket.requester, f"Resolved: {ticket.number}", f"{ticket.title} is now {new_status}.")
+        _notify(ticket.requester, f"Resolved: {ticket.number}", f"{ticket.display_title} is now {new_status}.")
     return ticket
 
 
@@ -170,13 +184,14 @@ def assign_ticket(ticket, actor, assignee):
         raise PermissionDenied("Only administrators can assign tickets.")
     previous = ticket.assignee
     ticket.assignee = assignee
+    _first_response(ticket, actor)
     if ticket.status in (Status.NEW, Status.SUBMITTED, Status.APPROVED):
         ticket.status = Status.ASSIGNED
     ticket.save()
     _log(ticket, actor, "ticket.assigned", previous=getattr(previous, "username", None),
          assignee=getattr(assignee, "username", None))
     emit("ticket.assigned", {**_ticket_payload(ticket), "assignee": getattr(assignee, "username", None)})
-    _notify(assignee, f"Assigned: {ticket.number}", f"You were assigned: {ticket.title}")
+    _notify(assignee, f"Assigned: {ticket.number}", f"You were assigned: {ticket.display_title}")
     return ticket
 
 
@@ -201,7 +216,7 @@ def complete_task(task, actor, done=True):
             ticket.save()
             _log(ticket, actor, "lifecycle.completed")
             emit("lifecycle.completed", _ticket_payload(ticket))
-            _notify(ticket.requester, f"Completed: {ticket.number}", f"All IT tasks finished for {ticket.title}.")
+            _notify(ticket.requester, f"Completed: {ticket.number}", f"All IT tasks finished for {ticket.display_title}.")
         elif not all_done and ticket.status == Status.ASSIGNED:
             ticket.status = Status.IN_PROGRESS
             ticket.save()
@@ -212,11 +227,20 @@ def complete_task(task, actor, done=True):
 
 
 @transaction.atomic
+def _first_response(ticket, actor):
+    """The first action by IT staff on a request stops the response clock."""
+    if ticket.first_responded_at is None and actor is not None and actor != ticket.requester and is_it_staff(actor):
+        ticket.first_responded_at = timezone.now()
+        ticket.save(update_fields=["first_responded_at", "updated_at"])
+
+
 def add_comment(ticket, author, body, is_internal=False):
     if is_internal and author.role not in (Role.SUPER_ADMIN, Role.IT_ADMIN, Role.TECHNICIAN, Role.ASSET_MANAGER) \
             and not author.is_superuser:
         raise PermissionDenied("Only IT staff can add internal notes.")
     comment = TicketComment.objects.create(ticket=ticket, author=author, body=body, is_internal=is_internal)
+    if not is_internal:
+        _first_response(ticket, author)
     _log(ticket, author, "ticket.commented", internal=is_internal)
     return comment
 

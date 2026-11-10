@@ -16,6 +16,9 @@ from .models import (APPROVAL_CATEGORIES, OPEN_STATUSES, Approval, Category, Onb
                      Task, Ticket, TicketComment)
 
 
+from .models import LABELS_AR
+
+
 class TicketSerializer(serializers.ModelSerializer):
     requester = serializers.CharField(source="requester.username", read_only=True)
     requester_name = serializers.CharField(source="requester.display_name", read_only=True)
@@ -26,23 +29,54 @@ class TicketSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display", read_only=True)
     priority_label = serializers.CharField(source="get_priority_display", read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
+    sla_response_status = serializers.CharField(source="response_status", read_only=True)
+    sla_resolution_status = serializers.CharField(source="resolution_status", read_only=True)
+    sla_at_risk = serializers.BooleanField(read_only=True)
+    category_label_ar = serializers.SerializerMethodField()
+    priority_label_ar = serializers.SerializerMethodField()
+    status_label_ar = serializers.SerializerMethodField()
+
+    def get_category_label_ar(self, obj):
+        return LABELS_AR["category"].get(obj.category, "")
+
+    def get_priority_label_ar(self, obj):
+        return LABELS_AR["priority"].get(obj.priority, "")
+
+    def get_status_label_ar(self, obj):
+        return LABELS_AR["status"].get(obj.status, "")
 
     class Meta:
         model = Ticket
-        fields = ["number", "title", "description", "category", "category_label", "priority", "priority_label",
-                  "status", "status_label", "requester", "requester_name", "assignee", "assignee_name",
-                  "department", "due_date", "resolved_at", "closed_at", "created_at", "updated_at", "is_overdue"]
+        fields = ["number", "title", "title_ar", "description", "description_ar", "source_language",
+                  "category", "category_label", "category_label_ar", "priority", "priority_label", "priority_label_ar",
+                  "status", "status_label", "status_label_ar", "requester", "requester_name", "assignee", "assignee_name",
+                  "department", "due_date", "resolved_at", "closed_at", "created_at", "updated_at", "is_overdue",
+                  "sla_response_due", "sla_resolution_due", "first_responded_at",
+                  "sla_response_status", "sla_resolution_status", "sla_at_risk"]
         read_only_fields = ["number", "status", "requester", "assignee", "department", "resolved_at", "closed_at",
                             "created_at", "updated_at"]
 
 
 class TicketCreateSerializer(serializers.Serializer):
-    title = serializers.CharField(min_length=5, max_length=200)
+    """Title and description may be given in English, Arabic, or both. At least one title is required."""
+    title = serializers.CharField(required=False, allow_blank=True, default="", max_length=200)
+    title_ar = serializers.CharField(required=False, allow_blank=True, default="", max_length=200)
     description = serializers.CharField(required=False, allow_blank=True, default="")
+    description_ar = serializers.CharField(required=False, allow_blank=True, default="")
+    source_language = serializers.ChoiceField(choices=["en", "ar"], default="en")
     category = serializers.ChoiceField(choices=[c for c in Category.values if c not in ("onboarding", "offboarding")],
                                        default="general")
     priority = serializers.ChoiceField(choices=Priority.values, default="medium")
     due_date = serializers.DateTimeField(required=False, allow_null=True, default=None)
+
+    def validate(self, attrs):
+        title, title_ar = attrs.get("title", "").strip(), attrs.get("title_ar", "").strip()
+        if not (title or title_ar):
+            raise ValidationError({"title": ["Enter the title in English, Arabic, or both."]})
+        for value in (title, title_ar):
+            if value and len(value) < 5:
+                raise ValidationError({"title": ["Titles need at least 5 characters."]})
+        return attrs
 
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -106,8 +140,10 @@ class TicketViewSet(viewsets.ModelViewSet):
         s.is_valid(raise_exception=True)
         d = s.validated_data
         try:
-            ticket = services.create_ticket(request.user, title=d["title"], description=d["description"],
-                                            category=d["category"], priority=d["priority"], due_date=d["due_date"])
+            ticket = services.create_ticket(
+                request.user, title=d["title"], title_ar=d["title_ar"], description=d["description"],
+                description_ar=d["description_ar"], source_language=d["source_language"], category=d["category"],
+                priority=d["priority"], due_date=d["due_date"])
         except DjangoValidationError as exc:
             raise ValidationError({"category": exc.messages})
         return Response(TicketSerializer(ticket).data, status=status.HTTP_201_CREATED)
@@ -221,20 +257,47 @@ class DashboardView(APIView):
         return qs.count() if user.is_global_admin else qs.filter(approver=user).count()
 
     def get(self, request):
+        from datetime import timedelta
+        from django.db.models import Avg, DurationField, ExpressionWrapper, F
         base = visible_tickets(request.user)
         now = timezone.now()
+        days = int(request.query_params.get("days", 30)) if request.query_params.get("days", "30") in ("7", "30", "90") else 30
+        period = base.filter(created_at__gte=now - timedelta(days=days))
+        avg = period.filter(resolved_at__isnull=False).aggregate(
+            avg=Avg(ExpressionWrapper(F("resolved_at") - F("created_at"), output_field=DurationField())))["avg"]
         data = {
-            "total": base.count(),
+            "days": days,
+            "total": period.count(),
             "open": base.filter(status__in=OPEN_STATUSES).count(),
             "in_progress": base.filter(status=TStatus.IN_PROGRESS).count(),
-            "resolved": base.filter(status=TStatus.RESOLVED).count(),
+            "resolved": period.filter(status=TStatus.RESOLVED).count(),
             "overdue": base.filter(due_date__lt=now, status__in=OPEN_STATUSES).count(),
             "pending_approvals": self._pending_approvals(request.user),
             "my_open_tasks": Task.objects.filter(assignee=request.user).exclude(status=Task.TaskStatus.DONE).count(),
-            "by_category": list(base.values("category").annotate(n=Count("id")).order_by("-n")),
-            "by_priority": list(base.values("priority").annotate(n=Count("id")).order_by("-n")),
+            "avg_resolution_hours": round(avg.total_seconds() / 3600, 1) if avg else None,
+            "by_category": list(period.values("category").annotate(n=Count("id")).order_by("-n")),
+            "by_priority": list(period.values("priority").annotate(n=Count("id")).order_by("-n")),
+            "by_status": list(period.values("status").annotate(n=Count("id")).order_by("-n")),
+            "sla": self._sla(base, now),
         }
         return Response(data)
+
+    @staticmethod
+    def _sla(base, now):
+        from django.db.models import F
+        from datetime import timedelta
+        from .sla import AT_RISK_WINDOW
+        open_qs = base.filter(status__in=OPEN_STATUSES)
+        closed = base.filter(resolved_at__isnull=False)
+        met = closed.filter(resolved_at__lte=F("sla_resolution_due")).count()
+        total_closed = closed.count()
+        return {
+            "response_breached": open_qs.filter(first_responded_at__isnull=True, sla_response_due__lt=now).count()
+                                  + open_qs.filter(first_responded_at__gt=F("sla_response_due")).count(),
+            "resolution_breached": open_qs.filter(sla_resolution_due__lt=now).count(),
+            "at_risk": open_qs.filter(sla_resolution_due__gte=now, sla_resolution_due__lte=now + AT_RISK_WINDOW).count(),
+            "met_percent": round(100 * met / total_closed) if total_closed else None,
+        }
 
 
 class OnboardingCreateSerializer(serializers.Serializer):

@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 
 from django.core import mail
+from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -238,3 +239,40 @@ class DashboardTests(Base):
         self.assertEqual(resp.status_code, 200)
         numbers = [t["number"] for t in resp.json()["results"]]
         self.assertEqual(numbers, [mine.number])
+
+
+class BilingualTests(Base):
+    def test_arabic_only_ticket_is_valid_and_displays(self):
+        t = services.create_ticket(self.employee, title_ar="طابعة الطابق الثالث لا تعمل", source_language="ar")
+        self.assertEqual(t.display_title, "طابعة الطابق الثالث لا تعمل")
+        self.assertEqual(t.source_language, "ar")
+
+    def test_bilingual_ticket_keeps_both_titles(self):
+        t = services.create_ticket(self.employee, title="VPN drops hourly", title_ar="ينقطع VPN كل ساعة")
+        self.assertEqual(t.title, "VPN drops hourly")
+        self.assertEqual(t.title_ar, "ينقطع VPN كل ساعة")
+
+    def test_empty_title_rejected(self):
+        with self.assertRaises(ValidationError):
+            services.create_ticket(self.employee, title="", title_ar="")
+
+    def test_api_returns_both_languages_and_arabic_labels(self):
+        self.client.force_login(self.employee)
+        resp = self.client.post("/api/v1/tickets/", {"title": "Mail not syncing", "title_ar": "البريد لا يتزامن",
+                                                     "description_ar": "الرسائل لا تظهر", "category": "email",
+                                                     "priority": "high"}, content_type="application/json")
+        self.assertEqual(resp.status_code, 201)
+        body = self.client.get(f"/api/v1/tickets/{resp.json()['number']}/").json()
+        self.assertEqual(body["title_ar"], "البريد لا يتزامن")
+        self.assertEqual(body["priority_label_ar"], "عالية")
+        self.assertEqual(body["category_label_ar"], "خدمات البريد الإلكتروني")
+
+    def test_api_rejects_ticket_without_title(self):
+        self.client.force_login(self.employee)
+        resp = self.client.post("/api/v1/tickets/", {"category": "email"}, content_type="application/json")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_user_can_set_interface_language(self):
+        self.client.force_login(self.employee)
+        resp = self.client.patch("/api/v1/auth/me/", {"preferred_language": "ar"}, content_type="application/json")
+        self.assertEqual(resp.json()["preferred_language"], "ar")
