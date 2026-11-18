@@ -7,8 +7,9 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.template.loader import render_to_string
-from django.core.mail import EmailMultiAlternatives
 from django.utils import timezone
+
+from itsm.mail import LOGO_CID, build_message
 
 from .models import LoginCode, User
 
@@ -50,15 +51,8 @@ def send(user: User, code: str) -> None:
         "If you did not request it, you can ignore this email. No one can sign in without this code.\n\n"
         "IT Support Technosat"
     )
-    html = render_to_string("emails/otp_code.html", {"name": name, "code": code})
-    message = EmailMultiAlternatives(
-        subject="Your Technosat sign-in code",
-        body=text,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        to=[user.email],
-    )
-    message.attach_alternative(html, "text/html")
-    message.send(fail_silently=False)
+    html = render_to_string("emails/otp_code.html", {"name": name, "code": code, "logo_cid": LOGO_CID})
+    build_message("Your Technosat sign-in code", user.email, text, html).send(fail_silently=False)
 
 
 def verify(user: User, code: str) -> bool:
