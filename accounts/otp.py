@@ -48,7 +48,7 @@ def send(user: User, code: str) -> None:
         f"{code}\n\n"
         "The code expires in 10 minutes and can be used once.\n"
         "If you did not request it, you can ignore this email. No one can sign in without this code.\n\n"
-        "Technosat IT Service Desk"
+        "IT Support Technosat"
     )
     html = render_to_string("emails/otp_code.html", {"name": name, "code": code})
     message = EmailMultiAlternatives(

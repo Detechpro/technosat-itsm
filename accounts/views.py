@@ -1,12 +1,13 @@
 from django.contrib import messages
 from django.contrib.auth.password_validation import validate_password
-from django.core.mail import send_mail
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
+
+from itsm.mail import send_branded
 
 from .audit import record
 from .forms import AcceptInviteForm, InviteForm
@@ -16,11 +17,16 @@ from .permissions import can_invite, can_manage_users, require_roles
 
 def _send_invitation(request, invitation, raw_token):
     link = request.build_absolute_uri(reverse("accept_invite", args=[raw_token]))
-    body = (f"You have been invited to the IT Service Portal as {invitation.get_role_display()}.\n\n"
-            f"Create your account here (link expires {invitation.expires_at:%Y-%m-%d %H:%M} UTC):\n{link}\n\n"
-            "If you were not expecting this invitation, ignore this email.")
     try:
-        send_mail("You're invited to the IT Service Portal", body, None, [invitation.email], fail_silently=False)
+        send_branded(
+            invitation.email,
+            "You're invited to IT Support Technosat",
+            "You're invited to the Technosat IT Service Portal",
+            [f"You have been invited as {invitation.get_role_display()}.",
+             f"The link below expires {invitation.expires_at:%Y-%m-%d %H:%M} UTC. "
+             "If you were not expecting this invitation, you can ignore this email."],
+            button=("Create your account", link),
+        )
         return True
     except Exception as exc:  # SMTP failures must not crash the admin workflow
         messages.error(request, f"Invitation saved, but the email could not be sent ({exc.__class__.__name__}). "

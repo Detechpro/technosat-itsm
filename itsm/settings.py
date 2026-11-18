@@ -114,7 +114,7 @@ EMAIL_HOST_PASSWORD = env("SMTP_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("SMTP_USE_TLS", True)
 EMAIL_USE_SSL = env_bool("SMTP_USE_SSL", False)
 EMAIL_TIMEOUT = 15
-DEFAULT_FROM_EMAIL = env("SMTP_FROM", "IT Service Desk <servicedesk@example.com>")
+DEFAULT_FROM_EMAIL = env("SMTP_FROM", "IT Support Technosat <support@detechpro.net>")
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 2
 
 # Microsoft Graph. Secrets come only from the environment, never from the database.

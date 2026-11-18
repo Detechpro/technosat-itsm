@@ -5,7 +5,6 @@ after the required approval has been recorded.
 """
 from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.core.mail import send_mail
 from django.db import transaction
 from django.utils import timezone
 
@@ -13,6 +12,7 @@ from accounts.audit import record
 from accounts.models import Role, User
 from accounts.permissions import can_change_status, can_assign_tickets, is_it_staff
 from integrations.n8n import emit
+from itsm.mail import send_branded
 
 from .models import (APPROVAL_CATEGORIES, Approval, Category, OffboardingRequest, OnboardingRequest, Priority,
                      Status, Task, Ticket, TicketComment)
@@ -43,7 +43,8 @@ def _notify(user, subject, body):
     if not user or not user.email:
         return
     try:
-        send_mail(f"[IT Service Portal] {subject}", body, None, [user.email], fail_silently=False)
+        send_branded(user.email, f"[IT Support Technosat] {subject}", subject, [body],
+                     greeting=f"Hello {user.display_name or user.username},")
     except Exception as exc:
         record(None, "notification.failed", user, subject=subject, error=exc.__class__.__name__)
 
