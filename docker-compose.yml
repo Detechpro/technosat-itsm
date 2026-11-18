@@ -17,6 +17,15 @@ services:
     environment:
       # Web calls the API by its service name, so Django must accept that host.
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-portal.example.com},api
+      # Email (sign-in codes). Passed explicitly so Portainer's stack variables reach the container.
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
+      SMTP_HOST: ${SMTP_HOST:-localhost}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-1}
+      SMTP_USE_SSL: ${SMTP_USE_SSL:-0}
+      SMTP_FROM: ${SMTP_FROM:-IT Service Desk <servicedesk@example.com>}
     volumes: [media:/app/media]
     command: sh -c "python manage.py migrate --noinput && gunicorn itsm.wsgi:application --bind 0.0.0.0:${API_PORT:-8000} --workers 3"
     expose: ["${API_PORT:-8000}"]
