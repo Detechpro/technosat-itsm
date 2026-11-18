@@ -6,7 +6,8 @@ import secrets
 from datetime import timedelta
 
 from django.conf import settings
-from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.core.mail import EmailMultiAlternatives
 from django.utils import timezone
 
 from .models import LoginCode, User
@@ -40,16 +41,24 @@ def issue(user: User):
 
 
 def send(user: User, code: str) -> None:
-    send_mail(
-        subject="Your IT Service Portal sign-in code",
-        message=(
-            f"Your sign-in code is {code}.\n\n"
-            "It expires in 10 minutes. If you did not request it, you can ignore this email."
-        ),
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=False,
+    name = user.display_name or user.get_full_name() or user.username
+    text = (
+        f"Hello {name},\n\n"
+        "Use the following six-digit code to sign in to the Technosat IT Service Portal:\n\n"
+        f"{code}\n\n"
+        "The code expires in 10 minutes and can be used once.\n"
+        "If you did not request it, you can ignore this email. No one can sign in without this code.\n\n"
+        "Technosat IT Service Desk"
     )
+    html = render_to_string("emails/otp_code.html", {"name": name, "code": code})
+    message = EmailMultiAlternatives(
+        subject="Your Technosat sign-in code",
+        body=text,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[user.email],
+    )
+    message.attach_alternative(html, "text/html")
+    message.send(fail_silently=False)
 
 
 def verify(user: User, code: str) -> bool:
