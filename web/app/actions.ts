@@ -124,6 +124,14 @@ export async function createTicket(form: FormData) {
   } catch (err) {
     redirect(withFlash("/tickets/new", "error", err instanceof Error ? err.message : ui.msgCreateFailed));
   }
+  const assignee = str(form, "assignee");
+  if (assignee) {
+    try {
+      await api(`/tickets/${number}/assign/`, { method: "POST", token, body: { assignee: Number(assignee) } });
+    } catch (err) {
+      redirect(withFlash(`/tickets/${number}`, "error", err instanceof Error ? err.message : ui.msgCreateFailed));
+    }
+  }
   revalidatePath("/tickets");
   redirect(withFlash(`/tickets/${number}`, "ok", ui.msgCreated));
 }
