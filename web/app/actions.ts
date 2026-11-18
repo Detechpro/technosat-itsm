@@ -39,20 +39,20 @@ export async function requestCode(form: FormData) {
   const email = str(form, "email").toLowerCase();
   const next = safeNext(str(form, "next"));
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    redirect(`/login?error=${encodeURIComponent(ui.errEmail)}&next=${encodeURIComponent(next)}`);
+    redirect(`/?error=${encodeURIComponent(ui.errEmail)}&next=${encodeURIComponent(next)}`);
   }
   try {
     await api("/auth/otp/request/", { method: "POST", body: { email } });
   } catch (err) {
     const message = err instanceof ApiError && err.status === 429 ? ui.errThrottle : ui.errGeneric;
-    redirect(`/login?error=${encodeURIComponent(message)}&next=${encodeURIComponent(next)}`);
+    redirect(`/?error=${encodeURIComponent(message)}&next=${encodeURIComponent(next)}`);
   }
   const { cookies } = await import("next/headers");
   const { OTP_COOKIE } = await import("@/lib/session");
   (await cookies()).set(OTP_COOKIE, email, {
     httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 60 * 15,
   });
-  redirect(`/login?step=code&next=${encodeURIComponent(next)}`);
+  redirect(`/?step=code&next=${encodeURIComponent(next)}`);
 }
 
 /** Step 2: exchange the emailed code for a session. */
@@ -64,9 +64,9 @@ export async function verifyCode(form: FormData) {
   const email = store.get(OTP_COOKIE)?.value ?? "";
   const next = safeNext(str(form, "next"));
   const code = str(form, "code").replace(/\s/g, "");
-  if (!email) redirect("/login");
+  if (!email) redirect("/");
   if (!/^\d{6}$/.test(code)) {
-    redirect(`/login?step=code&error=${encodeURIComponent(ui.errCode)}&next=${encodeURIComponent(next)}`);
+    redirect(`/?step=code&error=${encodeURIComponent(ui.errCode)}&next=${encodeURIComponent(next)}`);
   }
   let token: string;
   try {
@@ -74,7 +74,7 @@ export async function verifyCode(form: FormData) {
     token = data.token;
   } catch (err) {
     const message = err instanceof ApiError && err.status === 429 ? ui.errThrottle : ui.errInvalidCode;
-    redirect(`/login?step=code&error=${encodeURIComponent(message)}&next=${encodeURIComponent(next)}`);
+    redirect(`/?step=code&error=${encodeURIComponent(message)}&next=${encodeURIComponent(next)}`);
   }
   store.set(SESSION_COOKIE, token, {
     httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 60 * 60 * 8,
@@ -88,7 +88,7 @@ export async function cancelCode() {
   const { cookies } = await import("next/headers");
   const { OTP_COOKIE } = await import("@/lib/session");
   (await cookies()).delete(OTP_COOKIE);
-  redirect("/login");
+  redirect("/");
 }
 
 export async function logout() {
@@ -100,7 +100,7 @@ export async function logout() {
   const { cookies } = await import("next/headers");
   const { SESSION_COOKIE } = await import("@/lib/session");
   (await cookies()).delete(SESSION_COOKIE);
-  redirect("/login");
+  redirect("/");
 }
 
 export async function createTicket(form: FormData) {
@@ -116,7 +116,7 @@ export async function createTicket(form: FormData) {
     due_date: str(form, "due_date") ? new Date(str(form, "due_date")).toISOString() : null,
   };
   const token = await getToken();
-  if (!token) redirect("/login");
+  if (!token) redirect("/");
   let number: string;
   try {
     const created = await api<{ number: string }>("/tickets/", { method: "POST", token, body });
@@ -186,7 +186,7 @@ export async function submitOnboarding(form: FormData) {
     approver: Number(str(form, "approver")),
   };
   const token = await getToken();
-  if (!token) redirect("/login");
+  if (!token) redirect("/");
   let number: string;
   try {
     const created = await api<{ number: string }>("/lifecycle/onboarding/", { method: "POST", token, body });
