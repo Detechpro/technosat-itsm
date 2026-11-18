@@ -72,28 +72,31 @@ def create_ticket(requester, *, title="", title_ar="", description="", descripti
         raise ValidationError("Enter the request title in English, Arabic, or both.")
     if source_language not in ("en", "ar"):
         source_language = "en"
-    if category in APPROVAL_CATEGORIES:
-        approver = approver or requester.manager
-        if approver is None:
-            raise ValidationError("This request type needs a manager approver. Set a reporting manager first.")
+    approver = approver or requester.manager or _default_approver(requester)
+    if approver is None:
+        raise ValidationError("No approver is available. Set a reporting manager for your account first.")
     from .sla import due_times
     response_due, resolution_due = due_times(priority)
     ticket = Ticket.objects.create(
         title=title, title_ar=title_ar, description=description, description_ar=description_ar,
         source_language=source_language, category=category, priority=priority, due_date=due_date,
         requester=requester, department=requester.department, approver=approver,
-        status=Status.PENDING_APPROVAL if category in APPROVAL_CATEGORIES else Status.SUBMITTED,
+        status=Status.PENDING_APPROVAL,
         sla_response_due=response_due, sla_resolution_due=resolution_due,
     )
-    if category in APPROVAL_CATEGORIES:
-        Approval.objects.create(ticket=ticket, approver=approver, level=1)
-        _notify(approver, f"Approval required: {ticket.number}",
-                f"{requester.display_name} submitted: {ticket.display_title}")
+    Approval.objects.create(ticket=ticket, approver=approver, level=1)
+    _notify(approver, f"Approval required: {ticket.number}",
+            f"{requester.display_name} submitted: {ticket.display_title}")
     _log(ticket, requester, "ticket.created", category=category)
     emit("ticket.created", _ticket_payload(ticket))
-    if category in APPROVAL_CATEGORIES:
-        emit("approval.requested", _ticket_payload(ticket))
+    emit("approval.requested", _ticket_payload(ticket))
     return ticket
+
+
+def _default_approver(requester):
+    """Fallback approver when the requester has no manager: another active super administrator."""
+    return (User.objects.filter(role=Role.SUPER_ADMIN, is_active=True)
+            .exclude(pk=requester.pk).order_by("pk").first())
 
 
 @transaction.atomic

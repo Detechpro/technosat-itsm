@@ -11,6 +11,7 @@ from .sla import DEFAULT_TARGETS, due_times
 
 class SlaTests(TestCase):
     def setUp(self):
+        User.objects.create_user("approver", password="x-Passw0rd-long", role=Role.SUPER_ADMIN, email="approver@x.example")
         self.requester = User.objects.create_user("req", password="x-Passw0rd-long", role=Role.EMPLOYEE)
         self.tech = User.objects.create_user("tech", password="x-Passw0rd-long", role=Role.TECHNICIAN)
         self.admin = User.objects.create_user("boss", password="x-Passw0rd-long", role=Role.IT_ADMIN)
@@ -99,5 +100,5 @@ class SlaTests(TestCase):
         d90 = client.get("/api/v1/dashboard/?days=90").json()
         self.assertEqual(d7["total"], 1)
         self.assertEqual(d90["total"], 2)
-        self.assertEqual(d7["by_status"][0]["status"], Status.SUBMITTED)
+        self.assertEqual(d7["by_status"][0]["status"], Status.PENDING_APPROVAL)
         self.assertIsNone(d7["avg_resolution_hours"])

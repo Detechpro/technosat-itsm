@@ -52,7 +52,8 @@ LABELS_AR = {
 CLOSED_STATUSES = {Status.RESOLVED, Status.CLOSED, Status.REJECTED, Status.CANCELLED}
 OPEN_STATUSES = [s for s in Status.values if s not in CLOSED_STATUSES]
 # Categories whose work must not start until a manager approves.
-APPROVAL_CATEGORIES = {Category.ONBOARDING, Category.OFFBOARDING, Category.EQUIPMENT}
+# Every request goes to approval first; IT starts work only after it is approved.
+APPROVAL_CATEGORIES = set(Category.values)
 
 
 class TicketSequence(models.Model):

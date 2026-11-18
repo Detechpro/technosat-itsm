@@ -20,10 +20,10 @@ class Base(TestCase):
                                                 department=self.dept, email="mgr@example.com")
         self.employee = User.objects.create_user("emp", password="x-Passw0rd-long", role=Role.EMPLOYEE,
                                                  department=self.dept, manager=self.manager, email="emp@example.com")
-        self.hr = User.objects.create_user("hr", password="x-Passw0rd-long", role=Role.HR_ADMIN, email="hr@example.com")
-        self.it = User.objects.create_user("itadmin", password="x-Passw0rd-long", role=Role.IT_ADMIN, email="it@example.com")
-        self.tech = User.objects.create_user("tech", password="x-Passw0rd-long", role=Role.TECHNICIAN, email="t@example.com")
-        self.other = User.objects.create_user("other", password="x-Passw0rd-long", role=Role.EMPLOYEE, email="o@example.com")
+        self.hr = User.objects.create_user("hr", password="x-Passw0rd-long", role=Role.HR_ADMIN, email="hr@example.com", manager=self.manager)
+        self.it = User.objects.create_user("itadmin", password="x-Passw0rd-long", role=Role.IT_ADMIN, email="it@example.com", manager=self.manager)
+        self.tech = User.objects.create_user("tech", password="x-Passw0rd-long", role=Role.TECHNICIAN, email="t@example.com", manager=self.manager)
+        self.other = User.objects.create_user("other", password="x-Passw0rd-long", role=Role.EMPLOYEE, email="o@example.com", manager=self.manager)
 
     def onboarding_data(self, **overrides):
         data = dict(employee_name="Ada Lovelace", company_email="ada@contoso.example", job_title="Analyst",
@@ -43,7 +43,7 @@ class TicketNumberingTests(Base):
         year = timezone.now().year
         self.assertEqual(t1.number, f"IT-{year}-00001")
         self.assertEqual(t2.number, f"IT-{year}-00002")
-        self.assertEqual(t1.status, Status.SUBMITTED)
+        self.assertEqual(t1.status, Status.PENDING_APPROVAL)
 
 
 class ApprovalGatingTests(Base):
@@ -58,6 +58,21 @@ class ApprovalGatingTests(Base):
         self.assertEqual(ticket.status, Status.ASSIGNED)
         self.assertEqual(ticket.tasks.count(), 7)
         self.assertEqual(ticket.tasks.get(sequence=1).assignee, self.it)
+
+    def test_general_request_waits_for_approval_then_is_ready_for_work(self):
+        ticket = services.create_ticket(self.employee, title="Wi-Fi is down")
+        self.assertEqual(ticket.status, Status.PENDING_APPROVAL)
+        approval = ticket.approvals.get()
+        self.assertEqual(approval.approver, self.manager)
+        services.decide_approval(approval, self.manager, Approval.Decision.APPROVED, "ok")
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.status, Status.APPROVED)
+        services.assign_ticket(ticket, self.it, self.it)
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.status, Status.ASSIGNED)
+        services.change_status(ticket, self.it, Status.IN_PROGRESS)
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.status, Status.IN_PROGRESS)
 
     def test_only_designated_approver_can_decide(self):
         ticket = services.create_ticket(self.employee, title="Laptop please", category=Category.EQUIPMENT)

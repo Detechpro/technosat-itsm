@@ -43,6 +43,7 @@ class SigningTests(TestCase):
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class OutboundTests(TestCase):
     def setUp(self):
+        User.objects.create_user("approver", password="x-Passw0rd-long", role=Role.SUPER_ADMIN, email="approver@x.example")
         self.emp = User.objects.create_user("emp", password="Long-Passw0rd-1", email="e@x.example", role=Role.EMPLOYEE)
         self.it = User.objects.create_user("it", password="Long-Passw0rd-1", email="i@x.example", role=Role.IT_ADMIN)
         self.endpoint = WebhookEndpoint.objects.create(name="n8n", url="https://n8n.example/webhook/abc",
@@ -87,6 +88,7 @@ class OutboundTests(TestCase):
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class InboundTests(TestCase):
     def setUp(self):
+        User.objects.create_user("approver", password="x-Passw0rd-long", role=Role.SUPER_ADMIN, email="approver@x.example")
         self.emp = User.objects.create_user("emp", password="Long-Passw0rd-1", email="e@x.example", role=Role.EMPLOYEE)
         self.ticket = services.create_ticket(self.emp, title="Inbound target ticket")
         self.url = reverse("n8n_callback")
@@ -131,6 +133,7 @@ class InboundTests(TestCase):
 
 class ApiTests(TestCase):
     def setUp(self):
+        User.objects.create_user("approver", password="x-Passw0rd-long", role=Role.SUPER_ADMIN, email="approver@x.example")
         pw = "Long-Passw0rd-1"
         self.dept_mgr = User.objects.create_user("mgr", password=pw, role=Role.MANAGER, email="m@x.example")
         self.emp = User.objects.create_user("emp", password=pw, role=Role.EMPLOYEE, email="e@x.example",
@@ -197,6 +200,7 @@ class ApiTests(TestCase):
 
 class MessageIntakeTests(TestCase):
     def setUp(self):
+        User.objects.create_user("approver", password="x-Passw0rd-long", role=Role.SUPER_ADMIN, email="approver@x.example")
         self.emp = User.objects.create_user("emp", password="Long-Passw0rd-1", email="e@x.example", role=Role.EMPLOYEE)
         self.url = reverse("n8n_callback")
 
@@ -243,6 +247,7 @@ class MessageIntakeTests(TestCase):
 
 class SsoTests(TestCase):
     def setUp(self):
+        User.objects.create_user("approver", password="x-Passw0rd-long", role=Role.SUPER_ADMIN, email="approver@x.example")
         self.admin = User.objects.create_user("it", password="Long-Passw0rd-1", email="it@x.example", role=Role.IT_ADMIN)
         self.emp = User.objects.create_user("emp", password="Long-Passw0rd-1", email="e@x.example", role=Role.EMPLOYEE)
 
